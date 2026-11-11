@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CloudPulse — Cloud Carbon Monitor</title>
+<style>
+:root{
+  --bg:#080e1a;--surf:#0f1c2e;--card:#111827;--bord:#1e3050;
+  --blue:#38bdf8;--green:#4ade80;--purple:#a78bfa;--orange:#fb923c;
+  --red:#f87171;--muted:#64748b;--text:#e2e8f0;
+  --mono:ui-monospace,'Cascadia Code','Fira Code',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+
+/* NAV */
+nav{height:52px;background:var(--surf);border-bottom:1px solid var(--bord);display:flex;align-items:center;gap:4px;padding:0 20px;position:fixed;top:0;left:0;right:0;z-index:100}
+.logo{font-size:16px;font-weight:800;color:var(--blue);display:flex;align-items:center;gap:8px;margin-right:16px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
+.nav-link{font-size:12.5px;color:var(--muted);cursor:pointer;padding:6px 14px;border-radius:6px;transition:all .15s;user-select:none}
+.nav-link:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.nav-link.active{color:var(--text);background:rgba(56,189,248,.1);color:var(--blue)}
+.nav-r{margin-left:auto;display:flex;align-items:center;gap:14px}
+.live-badge{font-size:11px;font-family:var(--mono);background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--green);padding:3px 10px;border-radius:20px}
+#clock{font-size:11px;font-family:var(--mono);color:var(--muted)}
+
+/* PAGES */
+.page{position:fixed;top:52px;left:0;right:0;bottom:0;overflow-y:auto;padding:16px;display:none}
+.page.active{display:grid}
+
+/* ── PAGE 1: DASHBOARD ── */
+#pg-dashboard{grid-template-rows:auto auto 1fr;gap:12px}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi{background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:13px 15px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.kb::before{background:var(--blue)}.kg::before{background:var(--green)}.ko::before{background:var(--orange)}.kr::before{background:var(--red)}
+.kpi-lbl{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px}
+.kpi-val{font-size:24px;font-weight:800;line-height:1;font-family:var(--mono)}
+.kb .kpi-val{color:var(--blue)}.kg .kpi-val{color:var(--green)}.ko .kpi-val{color:var(--orange)}.kr .kpi-val{color:var(--red)}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:4px}
+
+.charts-row{display:grid;grid-template-columns:1fr 260px;gap:10px;min-height:0}
+.bottom-row{display:grid;grid-template-columns:1fr 320px;gap:10px;min-height:0}
+
+/* ── PAGE 2: ANALYTICS ── */
+#pg-analytics{grid-template-rows:auto 1fr 1fr;gap:12px}
+.analytics-top{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.analytics-mid{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0}
+.analytics-bot{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;min-height:0}
+
+/* ── PAGE 3: OPTIMIZE ── */
+#pg-optimize{grid-template-rows:auto 1fr;gap:12px}
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── PAGE 4: REGIONS ── */
+#pg-regions{grid-template-rows:auto 1fr;gap:12px}
+.region-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0}
+
+/* SHARED PANEL */
+.panel{background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:13px;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0}
+.ptitle{font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.ptitle small{font-size:10px;color:var(--muted);font-weight:400;font-family:var(--mono)}
+.chart-wrap{flex:1;min-height:0;position:relative;min-height:120px}
+.chart-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{color:var(--muted);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.6px;padding:4px 7px;text-align:left;border-bottom:1px solid var(--bord)}
+.tbl td{padding:5px 7px;border-bottom:1px solid rgba(30,48,80,.35)}
+.tbl tr:hover td{background:rgba(56,189,248,.04)}
+.bar-w{display:flex;align-items:center;gap:5px}
+.bar{height:3px;background:var(--bord);border-radius:2px;width:54px;flex-shrink:0}
+.bar-f{height:100%;border-radius:2px}
+.bdg{font-size:9px;padding:1px 5px;border-radius:3px;font-family:var(--mono);font-weight:600}
+.idle{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)}
+.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--green)}
+
+/* RECS */
+.rec{padding:9px 11px;border-left:2px solid var(--green);background:rgba(74,222,128,.04);border-radius:0 7px 7px 0;cursor:pointer;transition:background .12s;margin-bottom:8px}
+.rec:hover{background:rgba(74,222,128,.09)}
+.p2{border-color:var(--blue);background:rgba(56,189,248,.04)}.p2:hover{background:rgba(56,189,248,.09)}
+.p3{border-color:var(--purple);background:rgba(167,139,250,.04)}.p3:hover{background:rgba(167,139,250,.09)}
+.p4{border-color:var(--orange);background:rgba(251,146,60,.04)}.p4:hover{background:rgba(251,146,60,.09)}
+.rt{font-size:11.5px;font-weight:700;margin-bottom:2px}
+.rm{font-size:10px;color:var(--muted);margin-bottom:2px}
+.rs{font-size:10px;font-family:var(--mono);color:var(--green)}
+.p2 .rs{color:var(--blue)}.p3 .rs{color:var(--purple)}.p4 .rs{color:var(--orange)}
+
+/* STAT CARD (analytics) */
+.stat-card{background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.stat-label{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.7px}
+.stat-val{font-size:28px;font-weight:800;font-family:var(--mono)}
+.stat-delta{font-size:11px;color:var(--muted)}
+
+/* REGION TABLE */
+.region-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(30,48,80,.4)}
+.region-name{font-family:var(--mono);font-size:12px;width:140px;flex-shrink:0}
+.region-bar{flex:1;height:6px;background:var(--bord);border-radius:3px;overflow:hidden}
+.region-bar-fill{height:100%;border-radius:3px}
+.region-val{font-family:var(--mono);font-size:11px;width:55px;text-align:right;flex-shrink:0}
+.region-tag{font-size:9px;padding:1px 7px;border-radius:10px;font-family:var(--mono);font-weight:700;width:66px;text-align:center;flex-shrink:0}
+
+/* OPT CARD */
+.opt-card{background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.opt-card h3{font-size:13px;font-weight:700}
+.opt-card p{font-size:11.5px;color:var(--muted);line-height:1.55}
+.opt-saving{font-size:12px;font-family:var(--mono)}
+.opt-btn{padding:8px 14px;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s;align-self:flex-start}
+.opt-btn:hover{opacity:.8}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .18s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:20px;width:480px;max-width:90vw}
+.modal h3{font-size:14px;margin-bottom:6px}
+.modal p{font-size:12px;color:var(--muted);margin-bottom:8px}
+.cmd{background:var(--bg);border:1px solid var(--bord);border-radius:6px;padding:9px 11px;font-family:var(--mono);font-size:10px;color:var(--green);white-space:pre-wrap;word-break:break-all;margin:7px 0}
+.msave{font-size:11px;font-family:var(--mono);margin-bottom:12px}
+.btns{display:flex;gap:8px}
+.btn{padding:7px 15px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none}
+.btn:hover{opacity:.8}
+.btn-g{background:var(--green);color:#000}
+.btn-n{background:var(--bord);color:var(--text)}
+.toast{position:fixed;bottom:18px;right:18px;background:var(--green);color:#000;padding:9px 16px;border-radius:7px;font-size:12px;font-weight:700;z-index:300;animation:fu .2s both}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo"><div class="dot"></div>CloudPulse</div>
+  <span class="nav-link active" onclick="showPage('dashboard',this)">Dashboard</span>
+  <span class="nav-link" onclick="showPage('analytics',this)">Analytics</span>
+  <span class="nav-link" onclick="showPage('optimize',this)">Optimize</span>
+  <span class="nav-link" onclick="showPage('regions',this)">Regions</span>
+  <div class="nav-r">
+    <div class="live-badge">● LIVE</div>
+    <div id="clock"></div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 1 — DASHBOARD
+════════════════════════════════════════════════════════ -->
+<div class="page active" id="pg-dashboard">
+  <div class="kpis">
+    <div class="kpi kb"><div class="kpi-lbl">CO₂ Today</div><div class="kpi-val" id="vco2">247.0 kg</div><div class="kpi-sub">↑ 12% vs yesterday</div></div>
+    <div class="kpi ko"><div class="kpi-lbl">Cloud Spend</div><div class="kpi-val" id="vspend">₹1,842</div><div class="kpi-sub">₹55,260 / month est.</div></div>
+    <div class="kpi kg"><div class="kpi-lbl">Green Energy</div><div class="kpi-val">62%</div><div class="kpi-sub">Target: 80% by Q3</div></div>
+    <div class="kpi kr"><div class="kpi-lbl">Idle Instances</div><div class="kpi-val">4</div><div class="kpi-sub">Wasting ₹620 / day</div></div>
+  </div>
+  <div class="charts-row">
+    <div class="panel">
+      <div class="ptitle">CO₂ Emissions — Last 24h <small>kg / hour (live)</small></div>
+      <div class="chart-wrap"><canvas id="lineC"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Workload Distribution</div>
+      <div class="chart-wrap"><canvas id="pieC"></canvas></div>
+    </div>
+  </div>
+  <div class="bottom-row">
+    <div class="panel">
+      <div class="ptitle">Running Instances <small id="icount"></small></div>
+      <div style="overflow-y:auto;flex:1">
+        <table class="tbl">
+          <thead><tr><th>Name</th><th>Type</th><th>CPU</th><th>CO₂ kg/hr</th><th>Status</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">🤖 AI Recommendations <small>Claude-powered</small></div>
+      <div style="overflow-y:auto;flex:1" id="recs"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 2 — ANALYTICS
+════════════════════════════════════════════════════════ -->
+<div class="page" id="pg-analytics">
+  <div class="analytics-top">
+    <div class="stat-card">
+      <div class="stat-label">Total CO₂ This Month</div>
+      <div class="stat-val" style="color:var(--blue)">7,423 kg</div>
+      <div class="stat-delta">↓ 14% vs last month — 1,217 kg saved</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Projected Annual Savings</div>
+      <div class="stat-val" style="color:var(--green)">₹1.87L</div>
+      <div class="stat-delta">Based on current optimization rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Carbon Intensity (Current)</div>
+      <div class="stat-val" style="color:var(--orange)">0.415</div>
+      <div class="stat-delta">kg CO₂/kWh — us-east-1 (Virginia)</div>
+    </div>
+  </div>
+  <div class="analytics-mid">
+    <div class="panel">
+      <div class="ptitle">Monthly CO₂ Trend <small>kg / month</small></div>
+      <div class="chart-wrap"><canvas id="barC"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Emission by Service Type <small>kg / day avg</small></div>
+      <div class="chart-wrap"><canvas id="radarC"></canvas></div>
+    </div>
+  </div>
+  <div class="analytics-bot">
+    <div class="panel">
+      <div class="ptitle">Top Emitters <small>today</small></div>
+      <div style="overflow-y:auto;flex:1">
+        <table class="tbl">
+          <thead><tr><th>Instance</th><th>CO₂ kg/day</th><th>% of total</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:700">ml-trainer</td><td style="color:var(--red);font-family:var(--mono)">1.469</td><td><div class="bar-w"><div class="bar" style="width:100px"><div class="bar-f" style="width:52%;background:var(--red)"></div></div><span style="font-size:10px;color:var(--muted)">52%</span></div></td></tr>
+            <tr><td style="font-weight:700">api-gateway</td><td style="color:var(--orange);font-family:var(--mono)">0.504</td><td><div class="bar-w"><div class="bar" style="width:100px"><div class="bar-f" style="width:18%;background:var(--orange)"></div></div><span style="font-size:10px;color:var(--muted)">18%</span></div></td></tr>
+            <tr><td style="font-weight:700">db-replica</td><td style="color:var(--orange);font-family:var(--mono)">0.324</td><td><div class="bar-w"><div class="bar" style="width:100px"><div class="bar-f" style="width:11%;background:var(--orange)"></div></div><span style="font-size:10px;color:var(--muted)">11%</span></div></td></tr>
+            <tr><td style="font-weight:700">web-server</td><td style="color:var(--blue);font-family:var(--mono)">0.298</td><td><div class="bar-w"><div class="bar" style="width:100px"><div class="bar-f" style="width:10%;background:var(--blue)"></div></div><span style="font-size:10px;color:var(--muted)">10%</span></div></td></tr>
+            <tr><td style="font-weight:700">staging-app</td><td style="color:var(--muted);font-family:var(--mono)">0.173</td><td><div class="bar-w"><div class="bar" style="width:100px"><div class="bar-f" style="width:6%;background:var(--muted)"></div></div><span style="font-size:10px;color:var(--muted)">6%</span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Peak Hours Analysis</div>
+      <div style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px;padding-top:4px">
+        <div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:7px;padding:10px 12px">
+          <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:3px">🔴 Peak: 2:00 PM – 4:00 PM</div>
+          <div style="font-size:11px;color:var(--muted)">Avg 258 kg CO₂/hr — ml-trainer + api-gateway at 90%+ CPU</div>
+        </div>
+        <div style="background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.18);border-radius:7px;padding:10px 12px">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:3px">🟢 Low: 3:00 AM – 6:00 AM</div>
+          <div style="font-size:11px;color:var(--muted)">Avg 162 kg CO₂/hr — ideal window for batch migrations</div>
+        </div>
+        <div style="background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.18);border-radius:7px;padding:10px 12px">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:3px">💡 Recommendation</div>
+          <div style="font-size:11px;color:var(--muted)">Shift 3 batch workloads to 3AM window — save 31 kg CO₂/day</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Cost vs Carbon Correlation</div>
+      <div class="chart-wrap" style="min-height:140px"><canvas id="scatterC"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 3 — OPTIMIZE
+════════════════════════════════════════════════════════ -->
+<div class="page" id="pg-optimize">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div>
+      <div style="font-size:22px;font-weight:800;color:var(--text)">Optimization Center</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px">AI-ranked actions — click Apply to execute via AWS CLI</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);border-radius:8px;padding:8px 16px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:var(--green);font-family:var(--mono)">75.8 kg</div>
+        <div style="font-size:10px;color:var(--muted)">Total CO₂ Saveable/day</div>
+      </div>
+      <div style="background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.25);border-radius:8px;padding:8px 16px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:var(--orange);font-family:var(--mono)">₹5,620</div>
+        <div style="font-size:10px;color:var(--muted)">Total Saveable/month</div>
+      </div>
+    </div>
+  </div>
+  <div style="overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start">
+    <div class="opt-card" style="border-color:rgba(248,113,113,.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;font-family:var(--mono);background:rgba(248,113,113,.15);color:var(--red);padding:2px 8px;border-radius:10px">PRIORITY 1</span>
+        <span style="font-size:10px;color:var(--muted)">Idle Cleanup</span>
+      </div>
+      <h3>Scale down 4 idle instances in us-east-1</h3>
+      <p>batch-job, cache-node, dev-instance, idle-worker all show CPU below 5% for 6+ hours. These are zombie workloads draining cost and carbon for zero business value.</p>
+      <div class="opt-saving"><span style="color:var(--green)">−18.4 kg CO₂/day</span>  ·  <span style="color:var(--orange)">Save ₹620/day</span></div>
+      <div style="background:var(--bg);border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--green)">aws ec2 stop-instances --instance-ids i-0a1b2c i-0d3e4f i-0g5h6i i-0j7k8l</div>
+      <button class="opt-btn" style="background:var(--red);color:#fff" onclick="applyOptAction(this,'Stopping 4 idle instances...')">▶ Apply Now</button>
+    </div>
+    <div class="opt-card" style="border-color:rgba(56,189,248,.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;font-family:var(--mono);background:rgba(56,189,248,.12);color:var(--blue);padding:2px 8px;border-radius:10px">PRIORITY 2</span>
+        <span style="font-size:10px;color:var(--muted)">Scheduling</span>
+      </div>
+      <h3>Enable auto-scaling sleep schedule 11PM–6AM</h3>
+      <p>Night traffic drops 80% but instances run at full capacity. Auto-scaling to 2 nodes during off-peak hours saves significant energy without affecting user experience.</p>
+      <div class="opt-saving"><span style="color:var(--green)">−22.1 kg CO₂/day</span>  ·  <span style="color:var(--orange)">Save ₹3,800/mo</span></div>
+      <div style="background:var(--bg);border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--green)">aws autoscaling put-scheduled-update-group-action --auto-scaling-group-name prod-asg --recurrence "0 23 * * *" --desired-capacity 2</div>
+      <button class="opt-btn" style="background:var(--blue);color:#000" onclick="applyOptAction(this,'Scheduling auto-scaling...')">▶ Apply Now</button>
+    </div>
+    <div class="opt-card" style="border-color:rgba(167,139,250,.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;font-family:var(--mono);background:rgba(167,139,250,.12);color:var(--purple);padding:2px 8px;border-radius:10px">PRIORITY 3</span>
+        <span style="font-size:10px;color:var(--muted)">Migration</span>
+      </div>
+      <h3>Migrate batch jobs → eu-north-1 (Iceland)</h3>
+      <p>Iceland runs on 100% hydro/geothermal power. Carbon intensity 0.012 vs 0.415 kg CO₂/kWh in Virginia. Moving batch workloads cuts their emissions by 97% at zero extra cost.</p>
+      <div class="opt-saving"><span style="color:var(--green)">−31.2 kg CO₂/day</span>  ·  <span style="color:var(--orange)">Neutral cost</span></div>
+      <div style="background:var(--bg);border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--green)">aws ec2 copy-image --source-region us-east-1 --source-image-id ami-XXXXXXXX --region eu-north-1</div>
+      <button class="opt-btn" style="background:var(--purple);color:#000" onclick="applyOptAction(this,'Initiating region migration...')">▶ Apply Now</button>
+    </div>
+    <div class="opt-card" style="border-color:rgba(251,146,60,.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;font-family:var(--mono);background:rgba(251,146,60,.12);color:var(--orange);padding:2px 8px;border-radius:10px">PRIORITY 4</span>
+        <span style="font-size:10px;color:var(--muted)">Storage</span>
+      </div>
+      <h3>Enable S3 Intelligent-Tiering on all buckets</h3>
+      <p>Cold data sitting in S3 Standard consumes more energy than necessary. Intelligent-Tiering auto-moves unused objects to lower-power archive tiers after 30 days inactivity.</p>
+      <div class="opt-saving"><span style="color:var(--green)">−4.1 kg CO₂/day</span>  ·  <span style="color:var(--orange)">Save ₹1,200/mo</span></div>
+      <div style="background:var(--bg);border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--green)">aws s3api put-bucket-intelligent-tiering-configuration --bucket MY_BUCKET --id cp --intelligent-tiering-configuration Status=Enabled</div>
+      <button class="opt-btn" style="background:var(--orange);color:#000" onclick="applyOptAction(this,'Enabling S3 Tiering...')">▶ Apply Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 4 — REGIONS
+════════════════════════════════════════════════════════ -->
+<div class="page" id="pg-regions">
+  <div style="font-size:22px;font-weight:800;color:var(--text);flex-shrink:0">
+    Green Region Router
+    <span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:12px">Find the lowest-carbon AWS region for your workloads</span>
+  </div>
+  <div class="region-grid">
+    <div class="panel">
+      <div class="ptitle">Carbon Intensity by Region <small>kg CO₂ / kWh</small></div>
+      <div style="flex:1;overflow-y:auto">
+        <div id="regionRows"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Region Comparison Chart</div>
+      <div class="chart-wrap"><canvas id="regionBarC"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Migration Savings Calculator</div>
+      <div style="display:flex;flex-direction:column;gap:10px;flex:1">
+        <div style="font-size:11px;color:var(--muted)">Current region: <strong style="color:var(--text)">us-east-1 (Virginia)</strong></div>
+        <div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:8px;padding:12px">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px">CURRENT CARBON FACTOR</div>
+          <div style="font-size:28px;font-weight:800;color:var(--red);font-family:var(--mono)">0.415 <span style="font-size:13px">kg CO₂/kWh</span></div>
+        </div>
+        <div style="font-size:20px;text-align:center;color:var(--muted)">↓ migrate to</div>
+        <div style="background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);border-radius:8px;padding:12px">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px">GREENEST REGION — eu-north-1 (Iceland)</div>
+          <div style="font-size:28px;font-weight:800;color:var(--green);font-family:var(--mono)">0.012 <span style="font-size:13px">kg CO₂/kWh</span></div>
+        </div>
+        <div style="background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:32px;font-weight:800;color:var(--purple);font-family:var(--mono)">97.1%</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">carbon reduction for equivalent workloads</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Energy Source Breakdown <small>eu-north-1</small></div>
+      <div class="chart-wrap"><canvas id="energyC"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeMd(event)">
+  <div class="modal">
+    <h3 id="mT"></h3><p id="mR"></p>
+    <div style="font-size:10px;color:var(--muted)">AWS CLI Command:</div>
+    <div class="cmd" id="mC"></div>
+    <div class="msave" id="mS"></div>
+    <div class="btns">
+      <button class="btn btn-g" onclick="applyAct()">✓ Apply Action</button>
+      <button class="btn btn-n" onclick="document.getElementById('overlay').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+'use strict';
+
+// ── NAV ──────────────────────────────────────────────────────────
+function showPage(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pg-'+id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────
+const ck=document.getElementById('clock');
+function tickClock(){ck.textContent=new Date().toLocaleTimeString('en-IN',{hour12:false})+' IST'}
+tickClock(); setInterval(tickClock,1000);
+
+// ── DATA ──────────────────────────────────────────────────────────
+const INST=[
+  {name:'web-server',   type:'t3.large',   cpu:78.4,co2:.01240,idle:false},
+  {name:'api-gateway',  type:'m5.xlarge',  cpu:65.2,co2:.02100,idle:false},
+  {name:'db-replica',   type:'m5.xlarge',  cpu:42.1,co2:.01350,idle:false},
+  {name:'ml-trainer',   type:'c5.2xlarge', cpu:91.8,co2:.06120,idle:false},
+  {name:'log-processor',type:'t3.medium',  cpu:14.5,co2:.00460,idle:false},
+  {name:'staging-app',  type:'t3.large',   cpu:22.7,co2:.00720,idle:false},
+  {name:'batch-job',    type:'t3.medium',  cpu: 2.3,co2:.00090,idle:true },
+  {name:'cache-node',   type:'t3.large',   cpu: 1.1,co2:.00070,idle:true },
+  {name:'dev-instance', type:'t3.micro',   cpu: 3.2,co2:.00180,idle:true },
+  {name:'idle-worker',  type:'m5.xlarge',  cpu: 0.4,co2:.00040,idle:true },
+];
+const RECS=[
+  {p:1,t:'Scale down 4 idle instances in us-east-1',r:'CPU < 5% for 6+ hours — zombie workloads wasting energy',co2:'−18.4 kg CO₂/day',cost:'Save ₹620/day',cmd:'aws ec2 stop-instances --instance-ids i-0a1b2c i-0d3e4f i-0g5h6i i-0j7k8l'},
+  {p:2,t:'Enable auto-scaling sleep 11PM–6AM',r:'Night traffic drops 80% — auto scale-down saves energy',co2:'−22.1 kg CO₂/day',cost:'Save ₹3,800/mo',cmd:'aws autoscaling put-scheduled-update-group-action --auto-scaling-group-name prod-asg --recurrence "0 23 * * *" --desired-capacity 2'},
+  {p:3,t:'Migrate batch jobs → eu-north-1 (Iceland)',r:'Carbon factor 0.012 vs 0.415 — 97% cleaner electricity',co2:'−31.2 kg CO₂/day',cost:'Neutral cost',cmd:'aws ec2 copy-image --source-region us-east-1 --source-image-id ami-XXXXXXXX --region eu-north-1'},
+  {p:4,t:'Enable S3 Intelligent-Tiering',r:'Auto-moves cold data to lower-power storage tiers',co2:'−4.1 kg CO₂/day',cost:'Save ₹1,200/mo',cmd:'aws s3api put-bucket-intelligent-tiering-configuration --bucket MY_BUCKET --id cp --intelligent-tiering-configuration Status=Enabled'},
+];
+const REGIONS=[
+  {r:'eu-north-1', f:0.012,label:'Iceland 🌱',  color:'#4ade80'},
+  {r:'ca-central-1',f:0.130,label:'Canada',      color:'#4ade80'},
+  {r:'us-west-2',  f:0.136,label:'Oregon',       color:'#38bdf8'},
+  {r:'eu-west-1',  f:0.316,label:'Ireland',      color:'#38bdf8'},
+  {r:'us-east-1',  f:0.415,label:'Virginia ◀ You',color:'#fb923c'},
+  {r:'ap-southeast-1',f:0.493,label:'Singapore', color:'#f87171'},
+  {r:'ap-south-1', f:0.708,label:'Mumbai ⚠',    color:'#f87171'},
+];
+
+// ── DASHBOARD — Instances ────────────────────────────────────────
+const tb=document.getElementById('tbody');
+document.getElementById('icount').textContent=INST.length+' running';
+INST.forEach(r=>{
+  const cc=r.cpu>80?'var(--red)':r.cpu<5?'var(--muted)':'var(--green)';
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td style="font-weight:700">${r.name}</td>
+    <td style="color:var(--muted);font-family:var(--mono)">${r.type}</td>
+    <td><div class="bar-w"><div class="bar"><div class="bar-f" style="width:${r.cpu}%;background:${cc}"></div></div>
+    <span style="font-family:var(--mono);color:${cc};font-size:10px">${r.cpu}%</span></div></td>
+    <td style="font-family:var(--mono);color:var(--blue)">${r.co2.toFixed(5)}</td>
+    <td><span class="bdg ${r.idle?'idle':'ok'}">${r.idle?'IDLE':'OK'}</span></td>`;
+  tb.appendChild(tr);
+});
+
+// ── DASHBOARD — Recs ─────────────────────────────────────────────
+const rl=document.getElementById('recs');
+RECS.forEach(r=>{
+  const d=document.createElement('div');
+  d.className='rec p'+r.p;
+  d.innerHTML=`<div class="rt">${r.t}</div><div class="rm">${r.r}</div><div class="rs">${r.co2} · ${r.cost}</div>`;
+  d.onclick=()=>openMd(r);
+  rl.appendChild(d);
+});
+
+// ── REGIONS — rows ────────────────────────────────────────────────
+const rr=document.getElementById('regionRows');
+REGIONS.forEach(r=>{
+  const pct=(r.f/0.708*100).toFixed(0);
+  const tag=r.f<0.05?['🌱 GREENEST','#4ade80']:r.f>0.5?['⚠ HIGH','#f87171']:['OK','#64748b'];
+  rr.innerHTML+=`<div class="region-row">
+    <div class="region-name" style="color:var(--text)">${r.r}</div>
+    <div class="region-bar"><div class="region-bar-fill" style="width:${pct}%;background:${r.color}"></div></div>
+    <div class="region-val" style="color:${r.color}">${r.f}</div>
+    <div class="region-tag" style="background:${tag[1]}22;border:1px solid ${tag[1]}44;color:${tag[1]}">${tag[0]}</div>
+  </div>`;
+});
+
+// ── MODAL ─────────────────────────────────────────────────────────
+function openMd(r){
+  document.getElementById('mT').textContent=r.t;
+  document.getElementById('mR').textContent=r.r;
+  document.getElementById('mC').textContent=r.cmd;
+  document.getElementById('mS').innerHTML=`<span style="color:var(--green)">${r.co2}</span>  ·  <span style="color:var(--orange)">${r.cost}</span>`;
+  document.getElementById('overlay').classList.add('open');
+}
+function closeMd(e){if(e.target.id==='overlay')document.getElementById('overlay').classList.remove('open')}
+function applyAct(){
+  document.getElementById('overlay').classList.remove('open');
+  showToast('✓ Action queued — AWS CLI executing...');
+}
+function applyOptAction(btn,msg){
+  btn.textContent='✓ Applied!'; btn.disabled=true; btn.style.opacity='.5';
+  showToast(msg);
+}
+function showToast(msg){
+  const t=document.createElement('div');
+  t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3000);
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────
+const TICK={color:'#475569',font:{family:'ui-monospace,monospace',size:10}};
+const GRID={color:'rgba(30,48,80,.5)'};
+const TTP={backgroundColor:'#0f1c2e',borderColor:'#1e3050',borderWidth:1,titleColor:'#94a3b8',bodyColor:'#38bdf8'};
+
+// Line chart
+const liveData=[180,175,168,162,170,185,210,228,235,242,247,251,245,238,230,240,252,258,247,235,220,210,198,190];
+const lineChart=new Chart(document.getElementById('lineC'),{
+  type:'line',
+  data:{labels:Array.from({length:24},(_,i)=>`${i}:00`),
+    datasets:[{data:liveData,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,.07)',borderWidth:2,fill:true,tension:0.4,pointRadius:0,pointHoverRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,animation:false,
+    plugins:{legend:{display:false},tooltip:TTP},
+    scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{grid:GRID,ticks:TICK}}}
+});
+
+// Pie chart
+new Chart(document.getElementById('pieC'),{
+  type:'doughnut',
+  data:{labels:['Compute','Storage','Network','Database'],
+    datasets:[{data:[38,26,20,16],backgroundColor:['#38bdf8','#818cf8','#4ade80','#fb923c'],borderWidth:0,hoverOffset:5}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'66%',
+    plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:11},padding:10,boxWidth:10}},tooltip:{...TTP,bodyColor:'#e2e8f0'}}}
+});
+
+// Analytics bar chart
+new Chart(document.getElementById('barC'),{
+  type:'bar',
+  data:{labels:['Oct','Nov','Dec','Jan','Feb','Mar','Apr'],
+    datasets:[
+      {label:'CO₂ (kg)',data:[9200,8800,9100,8400,7900,7600,7423],backgroundColor:'rgba(56,189,248,.7)',borderRadius:4},
+      {label:'Target',  data:[9000,8700,8500,8200,7800,7500,7300],backgroundColor:'rgba(74,222,128,.3)',borderRadius:4},
+    ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}},tooltip:{...TTP,bodyColor:'#e2e8f0'}},
+    scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}}
+});
+
+// Radar chart
+new Chart(document.getElementById('radarC'),{
+  type:'radar',
+  data:{labels:['Compute','Storage','Network','Database','Lambda','CDN'],
+    datasets:[
+      {label:'This month',data:[85,42,28,38,15,8],borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,.12)',pointBackgroundColor:'#38bdf8'},
+      {label:'Last month',data:[98,50,31,44,18,10],borderColor:'#f87171',backgroundColor:'rgba(248,113,113,.08)',pointBackgroundColor:'#f87171'},
+    ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+    scales:{r:{grid:{color:'rgba(30,48,80,.6)'},angleLines:{color:'rgba(30,48,80,.6)'},ticks:{color:'#475569',font:{size:9},backdropColor:'transparent'},pointLabels:{color:'#94a3b8',font:{size:10}}}}}
+});
+
+// Scatter chart (cost vs carbon)
+new Chart(document.getElementById('scatterC'),{
+  type:'scatter',
+  data:{datasets:[{
+    label:'Instances',
+    data:[{x:12,y:0.298},{x:42,y:1.469},{x:25,y:0.504},{x:18,y:0.324},{x:8,y:0.173},{x:2,y:0.022},{x:1,y:0.017},{x:3,y:0.043}],
+    backgroundColor:'#38bdf8',pointRadius:7,pointHoverRadius:9,
+  }]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{...TTP,callbacks:{label:c=>`Cost: ₹${c.parsed.x}/day  CO₂: ${c.parsed.y}kg`}}},
+    scales:{
+      x:{grid:GRID,ticks:TICK,title:{display:true,text:'Cost (₹/day)',color:'#64748b',font:{size:10}}},
+      y:{grid:GRID,ticks:TICK,title:{display:true,text:'CO₂ (kg/day)',color:'#64748b',font:{size:10}}}}}
+});
+
+// Region bar chart
+new Chart(document.getElementById('regionBarC'),{
+  type:'bar',
+  data:{
+    labels:REGIONS.map(r=>r.r),
+    datasets:[{label:'kg CO₂/kWh',data:REGIONS.map(r=>r.f),backgroundColor:REGIONS.map(r=>r.color+'bb'),borderRadius:4}]
+  },
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:{...TTP,bodyColor:'#e2e8f0'}},
+    scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}}
+});
+
+// Energy pie for Iceland
+new Chart(document.getElementById('energyC'),{
+  type:'doughnut',
+  data:{labels:['Hydro Power','Geothermal','Wind','Other Renewable'],
+    datasets:[{data:[70,25,4,1],backgroundColor:['#38bdf8','#4ade80','#818cf8','#fb923c'],borderWidth:0,hoverOffset:5}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+    plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:11},padding:10,boxWidth:10}},tooltip:{...TTP,bodyColor:'#e2e8f0'}}}
+});
+
+// ── LIVE UPDATES ─────────────────────────────────────────────────
+let val=247;
+setInterval(()=>{
+  val=Math.max(150,Math.min(300,val+(Math.random()-.45)*5));
+  liveData.shift(); liveData.push(+val.toFixed(1));
+  lineChart.update('none');
+  document.getElementById('vco2').textContent=val.toFixed(1)+' kg';
+},3000);
+setInterval(()=>{
+  const v=1842+Math.round((Math.random()-.5)*80);
+  document.getElementById('vspend').textContent='₹'+v.toLocaleString('en-IN');
+},5000);
+</script>
+</body>
+</html>
